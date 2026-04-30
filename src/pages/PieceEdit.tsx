@@ -12,8 +12,9 @@ export default function PieceEdit() {
   const { id } = useParams<{ id: string }>()
   const isNew = id === 'new'
   const navigate = useNavigate()
-  const { pieces, addPiece, updatePiece, removePiece } = useStore()
+  const { addPiece, updatePiece, removePiece } = useStore()
 
+  const [existingPiece, setExistingPiece] = useState<Piece | null>(null)
   const [title, setTitle] = useState('')
   const [composer, setComposer] = useState('')
   const [instrument, setInstrument] = useState<Instrument>('piano')
@@ -29,15 +30,17 @@ export default function PieceEdit() {
 
   useEffect(() => {
     if (!isNew && id) {
-      const piece = pieces.find((p) => p.id === id)
-      if (piece) {
-        setTitle(piece.title)
-        setComposer(piece.composer ?? '')
-        setInstrument(piece.instrument)
-        setPdfName('（登録済み）')
-      }
+      db.getPiece(id).then((piece) => {
+        if (piece) {
+          setExistingPiece(piece)
+          setTitle(piece.title)
+          setComposer(piece.composer ?? '')
+          setInstrument(piece.instrument)
+          setPdfName('（登録済み）')
+        }
+      })
     }
-  }, [id, pieces])
+  }, [id, isNew])
 
   const handlePdfDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -88,7 +91,8 @@ export default function PieceEdit() {
         await addPiece(piece)
         navigate(`/pieces/${piece.id}/score`)
       } else {
-        const existing = pieces.find((p) => p.id === id)!
+        if (!existingPiece) { setError('曲データの読み込みに失敗しました'); return }
+        const existing = existingPiece
         let pdfBlobId = existing.pdfBlobId
         let audioBlobId = existing.audioBlobId
 
@@ -123,7 +127,7 @@ export default function PieceEdit() {
   }
 
   const handleDelete = async () => {
-    if (!id || isNew) return
+    if (!id || isNew || !existingPiece) return
     if (!confirm('この曲とすべての苦手箇所を削除しますか？')) return
     await removePiece(id)
     navigate('/')
